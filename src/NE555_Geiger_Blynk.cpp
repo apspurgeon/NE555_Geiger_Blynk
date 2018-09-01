@@ -19,8 +19,8 @@ CRGB leds[NUM_LEDS_PER_STRIP];
 //    -DBLYNKCERT_NAME="1234567890"
 
 //Wifi - BLYNK
-#ifndef DBLYNKCERT_NAMEDBLYNKCERT_NAME
-#define DBLYNKCERT_NAME "1234567890" //Default BLYNK Cert if not build flag from PlatformIO doesn't work
+#ifndef BLYNKCERT_NAME
+#define BLYNKCERT_NAME "1234567890" //Default BLYNK Cert if not build flag from PlatformIO doesn't work
 #endif
 
 #ifndef SSID_NAME
