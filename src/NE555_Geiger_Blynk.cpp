@@ -5,13 +5,20 @@
 #include <ESP8266HTTPClient.h>
 #include <ArduinoJson.h>
 #include <BlynkSimpleEsp8266.h>
+#include <WiFiManager.h>
+#include <DNSServer.h>
+#include <ESP8266WiFiMulti.h>
+#include <ArduinoOTA.h>
+#include <BlynkSimpleEsp8266.h>
 
 #define NUM_LEDS_PER_STRIP 44
 #define PIN_LED 13
-CRGB leds[NUM_LEDS_PER_STRIP];
 #define BLYNK_PRINT Serial
-#include <BlynkSimpleEsp8266.h>
+#define str(s) #s
+#define xstr(s) str(s)
 
+ESP8266WiFiMulti wifiMulti; // Create an instance of the ESP8266WiFiMulti class, called 'wifiMulti'
+CRGB leds[NUM_LEDS_PER_STRIP];
 
 //build_flags =
 //    -DSSID_NAME="SSID"
@@ -35,7 +42,6 @@ CRGB leds[NUM_LEDS_PER_STRIP];
 const char ssid[] = xstr(SSID_NAME);      //  your network SSID (name)
 const char pass[] = xstr(PASSWORD_NAME);  // your network password
 const char auth[] = xstr(BLYNKCERT_NAME); // your BLYNK Cert
-
 
 unsigned int localPort = 2390; // local port to listen for UDP packets
 WiFiUDP udp;                   // A UDP instance to let us send and receive packets over UDP
@@ -64,35 +70,89 @@ int cpmmin = 10000;           //Min cpm - set high initially
 int cpmmax = 0;               //Max cpm
 int restmaxmin = 0;
 
+void checkreset();
 void ConnectToAP();
 void API_Request();
 String JSON_Extract(String);
 void LEDrange();
 void displayLEDs();
 
-
-
 void setup()
 {
-  //initiate FastLED
-  FastLED.addLeds<WS2812B, PIN_LED, GRB>(leds, NUM_LEDS_PER_STRIP);
-
   //Terminal setup
   Serial.begin(9600);
+  Serial.print("temp = ");
+
+  pinMode(0, INPUT);
+
+  //initiate FastLED
+  FastLED.addLeds<WS2812B, PIN_LED, GRB>(leds, NUM_LEDS_PER_STRIP);
 
   //Connect to Wifi
   ConnectToAP();
 
+  WiFiManager wifiManager;
+  wifiManager.autoConnect("TARDIS");
+
   //Blynk setup
   Blynk.begin(auth, ssid, pass);
+
+  ArduinoOTA.onStart([]() {
+    String type;
+    if (ArduinoOTA.getCommand() == U_FLASH)
+    {
+      type = "sketch";
+    }
+    else
+    { // U_SPIFFS
+      type = "filesystem";
+    }
+
+    // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
+    Serial.println("Start updating " + type);
+  });
+  ArduinoOTA.onEnd([]() {
+    Serial.println("\nEnd");
+  });
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+  });
+  ArduinoOTA.onError([](ota_error_t error) {
+    Serial.printf("Error[%u]: ", error);
+    if (error == OTA_AUTH_ERROR)
+    {
+      Serial.println("Auth Failed");
+    }
+    else if (error == OTA_BEGIN_ERROR)
+    {
+      Serial.println("Begin Failed");
+    }
+    else if (error == OTA_CONNECT_ERROR)
+    {
+      Serial.println("Connect Failed");
+    }
+    else if (error == OTA_RECEIVE_ERROR)
+    {
+      Serial.println("Receive Failed");
+    }
+    else if (error == OTA_END_ERROR)
+    {
+      Serial.println("End Failed");
+    }
+  });
+  ArduinoOTA.begin();
+
+  Serial.println("OTA Ready");
+  Serial.print("IP address: ");
+  Serial.println(WiFi.localIP());
+  Serial.println("");
 }
-
-
 
 void loop()
 {
-
+  ArduinoOTA.handle();
   Blynk.run();
+  checkreset();
 
   unsigned long currentMillis = millis();
 
@@ -171,7 +231,18 @@ void loop()
   }
 }
 
-
+//Check if reset button pressed
+// void WiFiManager::resetSettings() {
+//  WiFi.disconnect(true);
+void checkreset()
+{
+  if (digitalRead(0) == 0)
+  {
+    Serial.println("*RESET*");
+    WiFi.disconnect();
+    ESP.restart();
+  }
+}
 
 //Connect to access point
 void ConnectToAP()
